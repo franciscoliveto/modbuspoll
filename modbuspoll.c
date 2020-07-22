@@ -46,6 +46,9 @@
 
 #define MAXIPv4SIZE 15
 
+#define MIN_SLAVE_ID 1
+#define MAX_SLAVE_ID 247
+
 const char *version = "0.1";
 
 /* These enum values cannot possibly conflict with the option values
@@ -74,7 +77,6 @@ enum {
 };
 
 static struct option longopts[] = {
-    {"poll-rate", required_argument, NULL, 'R'},
     {"help", no_argument, NULL, GETOPT_HELP_CHAR},
     {"version", no_argument, NULL, GETOPT_VERSION_CHAR},
     {NULL, 0, NULL, 0}
@@ -150,6 +152,7 @@ void usage(void)
   -m udp                      Modbus UDP/IP\n\
   -m rtu                      Modbus RTU (default for serial communication)\n\
   -m ascii                    Modbus ASCII\n\
+  -a integer                  Slave address (1-247, 1 is default)\n\
   -r integer                  Start data reference (1-65536, 100 is default)\n\
   -c integer                  Number of data values to read (1-125, 1 is default)\n\
   -t 1                        Coils data type\n\
@@ -199,6 +202,7 @@ int main(int argc, char *argv[])
 {
     int option;
     int poll_rate = 1;
+    int slave_id = 1;
     int npoints = 1;
     int ref = 100;
     int port = MODBUS_TCP_DEFAULT_PORT;;
@@ -206,7 +210,7 @@ int main(int argc, char *argv[])
     int type = INPUT_REGISTERS;
     char host[MAXIPv4SIZE+1];
     
-    while ((option = getopt_long(argc, argv, "m:r:c:t:p:R:", longopts, NULL)) != -1) {
+    while ((option = getopt_long(argc, argv, "m:a:r:c:t:p:R:", longopts, NULL)) != -1) {
         switch (option) {
         case 'm':
             if (strcmp(optarg, "tcp") == 0) {
@@ -221,6 +225,9 @@ int main(int argc, char *argv[])
                 fprintf(stderr, "Invalid communication mode %s\n", optarg);
                 exit(EXIT_FAILURE);
             }
+            break;
+        case 'a':
+            slave_id = atoi(optarg);
             break;
         case 'r':
             ref = atoi(optarg);
@@ -260,6 +267,11 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
+    if (slave_id < MIN_SLAVE_ID || slave_id > MAX_SLAVE_ID) {
+        fprintf(stderr, "Invalid slave address %d.\n", slave_id);
+        exit(EXIT_FAILURE);
+    }
+
     /* XXX: e.g. one handler per signal. */
     struct sigaction sa;
 
@@ -270,7 +282,6 @@ int main(int argc, char *argv[])
     sigaction(SIGHUP, &sa, NULL); /* Hangup detected on controlling terminal */
     sigaction(SIGINT, &sa, NULL); /* Interrupt from keyboard */
     sigaction(SIGTERM, &sa, NULL); /* Termination signal */
-
 
     switch (backend) {
     case TCP:
@@ -295,6 +306,12 @@ int main(int argc, char *argv[])
     }
 
     modbus_set_debug(ctx, FALSE);
+
+    if (modbus_set_slave(ctx, slave_id) == -1) {
+        fprintf(stderr, "%s\n", modbus_strerror(errno));
+        modbus_free(ctx);
+        exit(EXIT_FAILURE);
+    }
 
     if (modbus_connect(ctx) == -1) {
         fprintf(stderr, "Connection failed: %s\n", modbus_strerror(errno));
@@ -336,7 +353,7 @@ int main(int argc, char *argv[])
 
     mvwprintw(infowin, row++, INFOWIN_VALUE_OFFSET, "%s", backend_str(backend));
     mvwprintw(infowin, row++, INFOWIN_VALUE_OFFSET,
-              "start reference = %d, count = %d", ref, npoints);
+              "address = %d, start reference = %d, count = %d", slave_id, ref, npoints);
     mvwprintw(infowin, row++, INFOWIN_VALUE_OFFSET,
               "%s, port %d, poll rate %d s", host, port, poll_rate);
     mvwprintw(infowin, row++, INFOWIN_VALUE_OFFSET, "%s", type_str(type));
