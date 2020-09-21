@@ -7,12 +7,12 @@
  */
 #include <stdio.h>
 #include <string.h>
-#include <stdlib.h> /* for malloc() */
+#include <stdlib.h>
 #include <unistd.h> /* for sleep() */
-#include <getopt.h> /* for getopt_long() */
+#include <getopt.h>
 #include <limits.h> /* for CHAR_MIN */
-#include <errno.h> /* for errno variable */
-#include <stdbool.h> /* for standard library macro "bool" */
+#include <errno.h>
+#include <stdbool.h>
 #include <stdint.h> /* for int8_t, uint16_t, etc. */
 #include <signal.h> /* for sigaction() */
 #include <curses.h>
@@ -205,7 +205,7 @@ int main(int argc, char *argv[])
     int slave_id = 1;
     int npoints = 1;
     int ref = 100;
-    int port = MODBUS_TCP_DEFAULT_PORT;;
+    int port = MODBUS_TCP_DEFAULT_PORT;
     int backend = TCP;
     int type = INPUT_REGISTERS;
     char host[MAXIPv4SIZE+1];
@@ -330,7 +330,7 @@ int main(int argc, char *argv[])
             modbus_free(ctx);
             exit(EXIT_FAILURE);
         }
-        memset(tab_bits, 0, npoints * sizeof(uint16_t));
+        memset(tab_bits, 0, npoints * sizeof(uint8_t));
         break;
     case INPUT_REGISTERS:
     case HOLDING_REGISTERS:
