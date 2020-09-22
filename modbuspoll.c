@@ -20,37 +20,31 @@
 
 #include <modbus.h>
 
-/* This defines how much overhead is contained in the 'infowin' window
-   (box around the window takes two lines). */
-#define INFOWIN_OVERHEAD 2
+enum {
+    INFOWIN_OVERHEAD = 2, /* This defines how much overhead is contained in
+                             the 'infowin' window (box around the window
+                             takes two lines). */
+    INFOWIN_FIELDS = 4, /* This is how many display fields are output in the
+                           'infowin' window. Change this value if you add or
+                           remove fields from the 'infowin' window. */
+    MIN_INFOWIN_YSIZE = (INFOWIN_FIELDS + INFOWIN_OVERHEAD), /* This is the minimum ysize
+                                                                we'll accept for the
+                                                                'infowin' window. */
+    INFOWIN_DESC_OFFSET = 2, /* This is how far over in the 'infowin'
+                                window to indent the field descriptions. */
+    INFOWIN_VALUE_OFFSET = 17, /* This is how far over in the 'infowin'
+                                  window to indent the field values. */
+    INFOWIN_WIDTH = 75, /* This is the width of the 'infowin' window. */
+    DATAWIN_WIDTH = 75 /* This is the width of the 'datawin' window. */
+};
 
-/* This is how many display fields are output in the 'infowin' window.
-   Change this value if you add or remove fields from the 'infowin' window. */
-#define INFOWIN_FIELDS 4
+enum { MAXIPv4SIZE = 15 };
+enum { NSEC_CONVERTION_FACTOR = 1000000 };
 
-/* This is the minimum ysize we'll accept for the 'infowin' window. */
-#define MIN_INFOWIN_YSIZE (INFOWIN_FIELDS + INFOWIN_OVERHEAD)
-
-/* This is how far over in the 'infowin' window to indent the field
-   descriptions. */
-#define INFOWIN_DESC_OFFSET 2
-
-/* This is how far over in the 'infowin' window to indent the field
-   values. */
-#define INFOWIN_VALUE_OFFSET 17
-
-/* This is the width of the 'infowin' window. */
-#define INFOWIN_WIDTH 75
-
-/* This is the width of the 'datawin' window. */
-#define DATAWIN_WIDTH 75
-
-#define MAXIPv4SIZE 15
-
-#define MIN_SLAVE_ID 1
-#define MAX_SLAVE_ID 247
-
-const char *version = "0.1";
+enum {
+    MIN_SLAVE_ID = 1,
+    MAX_SLAVE_ID = 247
+};
 
 /* These enum values cannot possibly conflict with the option values
    ordinarily used by commands, including CHAR_MAX + 1, etc.  Avoid
@@ -83,6 +77,7 @@ static struct option longopts[] = {
     {NULL, 0, NULL, 0}
 };
 
+static const char *version = "0.1";
 
 static WINDOW *datawin, *infowin;
 
@@ -363,7 +358,7 @@ int main(int argc, char *argv[])
     struct timespec ts;
     /* poll_rate is in milliseconds */
     ts.tv_sec = poll_rate / 1000;
-    ts.tv_nsec = (poll_rate % 1000) * 1000000;
+    ts.tv_nsec = (poll_rate % 1000) * NSEC_CONVERTION_FACTOR;
     
     int address = ref - 1;
     for (;;) {
