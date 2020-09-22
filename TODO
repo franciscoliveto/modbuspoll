@@ -4,7 +4,6 @@ This is the modbuspoll To-Do list.
 
 modpoll.h header file with enums and defines. Is it really necessary?
 validate IPv4 host string.
-poll rate in milliseconds.
 windows resize. use entire terminal size?
 UDP, RTU, and ASCII backends.
 understand and improve Coils and Discrete Inputs reading. How to show them?

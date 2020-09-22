@@ -16,6 +16,7 @@
 #include <stdint.h> /* for int8_t, uint16_t, etc. */
 #include <signal.h> /* for sigaction() */
 #include <curses.h>
+#include <time.h>
 
 #include <modbus.h>
 
@@ -160,7 +161,7 @@ void usage(void)
   -t 3                        16-bit input register data type\n\
   -t 4                        16-bit holding register data type\n\
   -p integer                  TCP port number (502 is default)\n\
-  -R integer                  Poll rate in seconds (1 is default)\n\
+  -R integer                  Poll rate in milliseconds (1000 is default)\n\
       --version               Output version information and exit\n\
       --help                  Display this help and exit\n\
 ", stdout);
@@ -201,7 +202,7 @@ void windows_setup(void)
 int main(int argc, char *argv[])
 {
     int option;
-    int poll_rate = 1;
+    int poll_rate = 1000;
     int slave_id = 1;
     int npoints = 1;
     int ref = 100;
@@ -355,10 +356,14 @@ int main(int argc, char *argv[])
     mvwprintw(infowin, row++, INFOWIN_VALUE_OFFSET,
               "address = %d, start reference = %d, count = %d", slave_id, ref, npoints);
     mvwprintw(infowin, row++, INFOWIN_VALUE_OFFSET,
-              "%s, port %d, poll rate %d s", host, port, poll_rate);
+              "%s, port %d, poll rate %d milliseconds", host, port, poll_rate);
     mvwprintw(infowin, row++, INFOWIN_VALUE_OFFSET, "%s", type_str(type));
     wrefresh(infowin);
 
+    struct timespec ts;
+    /* poll_rate is in milliseconds */
+    ts.tv_sec = poll_rate / 1000;
+    ts.tv_nsec = (poll_rate % 1000) * 1000000;
     
     int address = ref - 1;
     for (;;) {
@@ -423,6 +428,6 @@ int main(int argc, char *argv[])
 
         wrefresh(datawin);
 
-        sleep(poll_rate);
+        nanosleep(&ts, NULL);
     }
 }
