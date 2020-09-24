@@ -1,14 +1,9 @@
 This is the modbuspoll To-Do list.
 
-** Code **
+** Features **
 
-modpoll.h header file with enums and defines. Is it really necessary?
-validate IPv4 host string.
-windows resize. use entire terminal size?
-UDP, RTU, and ASCII backends.
-understand and improve Coils and Discrete Inputs reading. How to show them?
-show register's values as decimal, real, hexadecimal. (cli argument).
-a window for modbus debugging messages?
+Modbus ASCII.
+Enron Modbus.
 
 ** Documentation **
 
