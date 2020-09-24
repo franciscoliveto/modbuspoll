@@ -8,7 +8,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <unistd.h> /* for sleep() */
 #include <getopt.h>
 #include <limits.h> /* for CHAR_MIN */
 #include <errno.h>
@@ -27,15 +26,13 @@ enum {
     INFOWIN_FIELDS = 4, /* This is how many display fields are output in the
                            'infowin' window. Change this value if you add or
                            remove fields from the 'infowin' window. */
-    MIN_INFOWIN_YSIZE = (INFOWIN_FIELDS + INFOWIN_OVERHEAD), /* This is the minimum ysize
-                                                                we'll accept for the
-                                                                'infowin' window. */
-    INFOWIN_DESC_OFFSET = 2, /* This is how far over in the 'infowin'
-                                window to indent the field descriptions. */
-    INFOWIN_VALUE_OFFSET = 17, /* This is how far over in the 'infowin'
-                                  window to indent the field values. */
-    INFOWIN_WIDTH = 75, /* This is the width of the 'infowin' window. */
-    DATAWIN_WIDTH = 75 /* This is the width of the 'datawin' window. */
+    INFOWIN_HEIGHT = (INFOWIN_FIELDS + INFOWIN_OVERHEAD), /* This is the minimum height
+                                                             we'll accept for the
+                                                             'infowin' window. */
+    INFOWIN_OFFSET = 2, /* This is how far over in the 'infowin'
+                           window to indent the field descriptions. */
+    DATAWIN_OFFSET = 2 /* This is how far over in the 'datawin'
+                          window to indent the field values. */
 };
 
 enum { MAXIPv4SIZE = 15 };
@@ -77,6 +74,16 @@ static struct option longopts[] = {
     {NULL, 0, NULL, 0}
 };
 
+
+static int poll_rate;
+static int slave_id;
+static int npoints;
+static int ref;
+static int port;
+static int backend;
+static int type;
+static char host[MAXIPv4SIZE+1];
+
 static const char *version = "0.1";
 
 static WINDOW *datawin, *infowin;
@@ -84,6 +91,8 @@ static WINDOW *datawin, *infowin;
 static uint16_t *tab_registers = NULL;
 static uint8_t *tab_bits = NULL;
 static modbus_t *ctx = NULL;
+
+void windows_setup();
 
 
 static void cleanup(void)
@@ -106,6 +115,16 @@ static void die(int sig)
     cleanup();
     fprintf(stderr, "Caught signal %d\n", sig);
     exit(EXIT_SUCCESS);
+}
+
+/* Cope with terminal resize. */
+static void resize(int sig)
+{
+    if (!isendwin()) {
+        endwin();
+        refresh();
+        windows_setup();
+    }
 }
 
 const char *backend_str(int n)
@@ -165,29 +184,27 @@ void usage(void)
 /* Initialize curses and set up screen windows */
 void windows_setup(void)
 {
-    int xsize, ysize;
-    
     initscr();
     cbreak();
     noecho();
-
-    getmaxyx(stdscr, ysize, xsize);
-    (void)xsize;
-    /* turn off cursor */
-    curs_set(0);
-
-    int row = 1;
     
-    infowin = newwin(MIN_INFOWIN_YSIZE, INFOWIN_WIDTH, 0, 0);    
+    curs_set(0); /* turn off cursor */
 
-    mvwaddstr(infowin, row++, INFOWIN_DESC_OFFSET, "Connection:");
-    mvwaddstr(infowin, row++, INFOWIN_DESC_OFFSET, "Slave:");
-    mvwaddstr(infowin, row++, INFOWIN_DESC_OFFSET, "Communication:");
-    mvwaddstr(infowin, row++, INFOWIN_DESC_OFFSET, "Data type:");
+    infowin = newwin(INFOWIN_HEIGHT, 0, 0, 0);
+    mvwprintw(infowin, 1, INFOWIN_OFFSET,
+              "Connection:\t\t%s", backend_str(backend));
+    mvwprintw(infowin, 2, INFOWIN_OFFSET,
+              "Slave:\t\taddress = %d, start reference = %d, count = %d",
+              slave_id, ref, npoints);
+    mvwprintw(infowin, 3, INFOWIN_OFFSET,
+              "Communication:\t%s, port %d, poll rate %d milliseconds",
+              host, port, poll_rate);
+    mvwprintw(infowin, 4, INFOWIN_OFFSET,
+              "Data Type:\t\t%s", type_str(type));
     box(infowin, 0, 0);
 
-    datawin = newwin(ysize - MIN_INFOWIN_YSIZE, DATAWIN_WIDTH, MIN_INFOWIN_YSIZE, 0);
-    mvwaddstr(datawin, 1, 2, "Polling slave... (Ctrl-C to stop)");
+    datawin = newwin(0, 0, INFOWIN_HEIGHT, 0);
+    mvwaddstr(datawin, 1, DATAWIN_OFFSET, "Polling slave... (Ctrl-C to stop)");
     box(datawin, 0, 0);
 
     wrefresh(infowin);
@@ -197,16 +214,17 @@ void windows_setup(void)
 int main(int argc, char *argv[])
 {
     int option;
-    int poll_rate = 1000;
-    int slave_id = 1;
-    int npoints = 1;
-    int ref = 100;
-    int port = MODBUS_TCP_DEFAULT_PORT;
-    int backend = TCP;
-    int type = INPUT_REGISTERS;
-    char host[MAXIPv4SIZE+1];
+
+    poll_rate = 1000;
+    slave_id = 1;
+    npoints = 1;
+    ref = 100;
+    port = MODBUS_TCP_DEFAULT_PORT;
+    backend = TCP;
+    type = INPUT_REGISTERS;
     
-    while ((option = getopt_long(argc, argv, "m:a:r:c:t:p:R:", longopts, NULL)) != -1) {
+    while ((option = getopt_long(argc, argv, "m:a:r:c:t:p:R:",
+                                 longopts, NULL)) != -1) {
         switch (option) {
         case 'm':
             if (strcmp(optarg, "tcp") == 0) {
@@ -268,16 +286,18 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    /* XXX: e.g. one handler per signal. */
     struct sigaction sa;
 
     sa.sa_flags = 0;
-    sa.sa_handler = die;
-
     sigfillset(&sa.sa_mask);
+
+    sa.sa_handler = die;
     sigaction(SIGHUP, &sa, NULL); /* Hangup detected on controlling terminal */
     sigaction(SIGINT, &sa, NULL); /* Interrupt from keyboard */
     sigaction(SIGTERM, &sa, NULL); /* Termination signal */
+
+    sa.sa_handler = resize;
+    sigaction(SIGWINCH, &sa, NULL); /* Window resizing signal */
 
     switch (backend) {
     case TCP:
@@ -344,16 +364,6 @@ int main(int argc, char *argv[])
     }
 
     windows_setup();
-
-    int row = 1;
-
-    mvwprintw(infowin, row++, INFOWIN_VALUE_OFFSET, "%s", backend_str(backend));
-    mvwprintw(infowin, row++, INFOWIN_VALUE_OFFSET,
-              "address = %d, start reference = %d, count = %d", slave_id, ref, npoints);
-    mvwprintw(infowin, row++, INFOWIN_VALUE_OFFSET,
-              "%s, port %d, poll rate %d milliseconds", host, port, poll_rate);
-    mvwprintw(infowin, row++, INFOWIN_VALUE_OFFSET, "%s", type_str(type));
-    wrefresh(infowin);
 
     struct timespec ts;
     /* poll_rate is in milliseconds */
