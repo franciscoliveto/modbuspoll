@@ -16,7 +16,7 @@ from pymodbus.datastore import (ModbusSequentialDataBlock,
 import random
 import time
 
-version = "0.1.0"
+version = "0.1"
 
 logger = logging.getLogger('modbridge')
 logger.setLevel(logging.DEBUG)
