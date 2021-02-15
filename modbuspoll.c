@@ -88,8 +88,8 @@ static const char *version = "0.1";
 
 static WINDOW *datawin, *infowin;
 
-static uint16_t *tab_registers = NULL;
-static uint8_t *tab_bits = NULL;
+static uint16_t *regstab = NULL;
+static uint8_t *bitstab = NULL;
 static modbus_t *ctx = NULL;
 
 void windows_setup();
@@ -101,8 +101,8 @@ static void cleanup(void)
         /* Done with curses. */
         endwin();
     }
-    free(tab_bits);
-    free(tab_registers);
+    free(bitstab);
+    free(regstab);
     if (ctx) {
         modbus_close(ctx);
         modbus_free(ctx);
@@ -213,7 +213,8 @@ void windows_setup(void)
 
 int main(int argc, char *argv[])
 {
-    int option;
+    int opt;
+    struct sigaction sa;
 
     poll_rate = 1000;
     slave_id = 1;
@@ -223,19 +224,20 @@ int main(int argc, char *argv[])
     backend = TCP;
     type = INPUT_REGISTERS;
     
-    while ((option = getopt_long(argc, argv, "m:a:r:c:t:p:R:",
-                                 longopts, NULL)) != -1) {
-        switch (option) {
+    while ((opt = getopt_long(argc, argv,
+                              "m:a:r:c:t:p:R:",
+                              longopts, NULL)) != -1) {
+        switch (opt) {
         case 'm':
-            if (strcmp(optarg, "tcp") == 0) {
+            if (strcmp(optarg, "tcp") == 0)
                 backend = TCP;
-            } else if (strcmp(optarg, "udp") == 0) {
+            else if (strcmp(optarg, "udp") == 0)
                 backend = UDP;
-            } else if (strcmp(optarg, "rtu") == 0) {
+            else if (strcmp(optarg, "rtu") == 0)
                 backend = RTU;
-            } else if (strcmp(optarg, "ascii") == 0) {
+            else if (strcmp(optarg, "ascii") == 0)
                 backend = ASCII;
-            } else {
+            else {
                 fprintf(stderr, "Invalid communication mode %s\n", optarg);
                 exit(EXIT_FAILURE);
             }
@@ -269,7 +271,6 @@ int main(int argc, char *argv[])
         case GETOPT_HELP_CHAR:
             usage();
             exit(EXIT_SUCCESS);
-        case '?':
         default:
             usage();
             exit(EXIT_FAILURE);
@@ -286,7 +287,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    struct sigaction sa;
+    
 
     sa.sa_flags = 0;
     sigfillset(&sa.sa_mask);
@@ -339,25 +340,25 @@ int main(int argc, char *argv[])
     switch (type) {
     case COILS:
     case DISCRETE_INPUTS:
-        tab_bits = (uint8_t *)malloc(npoints * sizeof(uint8_t));
-        if (tab_bits == NULL) {
+        bitstab = (uint8_t *)malloc(npoints * sizeof(uint8_t));
+        if (bitstab == NULL) {
             fputs("Cannot allocate memory for bits\n", stderr);
             modbus_close(ctx);
             modbus_free(ctx);
             exit(EXIT_FAILURE);
         }
-        memset(tab_bits, 0, npoints * sizeof(uint8_t));
+        memset(bitstab, 0, npoints * sizeof(uint8_t));
         break;
     case INPUT_REGISTERS:
     case HOLDING_REGISTERS:
-        tab_registers = (uint16_t *)malloc(npoints * sizeof(uint16_t));
-        if (tab_registers == NULL) {
+        regstab = (uint16_t *)malloc(npoints * sizeof(uint16_t));
+        if (regstab == NULL) {
             fputs("Cannot allocate memory for registers\n", stderr);
             modbus_close(ctx);
             modbus_free(ctx);
             exit(EXIT_FAILURE);
         }
-        memset(tab_registers, 0, npoints * sizeof(uint16_t));
+        memset(regstab, 0, npoints * sizeof(uint16_t));
         break;
     default:
         ;
@@ -376,7 +377,7 @@ int main(int argc, char *argv[])
         
         switch (type) {
         case COILS:
-            rc = modbus_read_bits(ctx, address, npoints, tab_bits);
+            rc = modbus_read_bits(ctx, address, npoints, bitstab);
             if (rc == -1) {
                 cleanup();
                 fprintf(stderr, "%s\n", modbus_strerror(errno));
@@ -384,12 +385,12 @@ int main(int argc, char *argv[])
             }
 
             for (i = 0; i < rc; i++) {
-                mvwprintw(datawin, i + 3, 2, "[%d]: %d", ref + i, tab_bits[i]);
+                mvwprintw(datawin, i + 3, 2, "[%d]: %d", ref + i, bitstab[i]);
             }
 
             break;
         case DISCRETE_INPUTS:
-            rc = modbus_read_input_bits(ctx, address, npoints, tab_bits);
+            rc = modbus_read_input_bits(ctx, address, npoints, bitstab);
             if (rc == -1) {
                 cleanup();
                 fprintf(stderr, "%s\n", modbus_strerror(errno));
@@ -397,12 +398,12 @@ int main(int argc, char *argv[])
             }
 
             for (i = 0; i < rc; i++) {
-                mvwprintw(datawin, i + 3, 2, "[%d]: %d", ref + i, tab_bits[i]);
+                mvwprintw(datawin, i + 3, 2, "[%d]: %d", ref + i, bitstab[i]);
             }
 
             break;
         case INPUT_REGISTERS:
-            rc = modbus_read_input_registers(ctx, address, npoints, tab_registers);
+            rc = modbus_read_input_registers(ctx, address, npoints, regstab);
             if (rc == -1) {
                 cleanup();
                 fprintf(stderr, "%s\n", modbus_strerror(errno));
@@ -410,12 +411,12 @@ int main(int argc, char *argv[])
             }
 
             for (i = 0; i < rc; i++) {
-                mvwprintw(datawin, i + 3, 2, "[%d]: %d", ref + i, tab_registers[i]);
+                mvwprintw(datawin, i + 3, 2, "[%d]: %d", ref + i, regstab[i]);
             }
 
             break;
         case HOLDING_REGISTERS:
-            rc = modbus_read_registers(ctx, address, npoints, tab_registers);
+            rc = modbus_read_registers(ctx, address, npoints, regstab);
             if (rc == -1) {
                 cleanup();
                 fprintf(stderr, "%s\n", modbus_strerror(errno));
@@ -423,7 +424,7 @@ int main(int argc, char *argv[])
             }
             
             for (i = 0; i < rc; i++) {
-                mvwprintw(datawin, i + 3, 2, "[%d]: %d", ref + i, tab_registers[i]);
+                mvwprintw(datawin, i + 3, 2, "[%d]: %d", ref + i, regstab[i]);
             }
             
             break;
